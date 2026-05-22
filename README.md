@@ -1,13 +1,13 @@
 <div align="center">
   <h1>@cyanheads/eia-mcp-server</h1>
   <p><b>Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.</b>
-  <div>4 Tools</div>
+  <div>7 Tools</div>
   </p>
 </div>
 
 <div align="center">
 
-[![npm](https://img.shields.io/npm/v/@cyanheads/eia-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/eia-mcp-server) [![Version](https://img.shields.io/badge/Version-0.1.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![Framework](https://img.shields.io/badge/Built%20on-@cyanheads/mcp--ts--core-259?style=flat-square)](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/)
+[![npm](https://img.shields.io/npm/v/@cyanheads/eia-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/eia-mcp-server) [![Version](https://img.shields.io/badge/Version-0.1.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![Framework](https://img.shields.io/badge/Built%20on-@cyanheads/mcp--ts--core-259?style=flat-square)](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![TypeScript](https://img.shields.io/badge/TypeScript-^6.0.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
@@ -17,7 +17,7 @@
 
 ## Tools
 
-Four tools covering the two-phase EIA workflow — find the right dataset route, then pull the data:
+Seven tools covering the two-phase EIA workflow — find the right dataset route, pull the data, and query spilled results via SQL:
 
 | Tool | Description |
 |:-----|:------------|
@@ -25,6 +25,9 @@ Four tools covering the two-phase EIA workflow — find the right dataset route,
 | `eia_describe_route` | Returns full metadata for a leaf route: available facets with valid values, data column names, frequency options, units, and date range. Call before `eia_query_route` to understand filter options. |
 | `eia_search_routes` | Fuzzy text search across route names, descriptions, and category labels. Resolves natural-language queries like "gasoline retail prices" or "solar capacity by state" to matching route paths. |
 | `eia_query_route` | Fetches data from a leaf route with optional facet filters, date range, frequency, and column selection. Spills large result sets to a DataCanvas table for SQL analysis. |
+| `eia_dataframe_describe` | Lists active DataCanvas dataframes created by prior `eia_query_route` calls. Shows table name, column names and types, row count, and canvas ID. |
+| `eia_dataframe_query` | Runs a read-only SQL SELECT against a DataCanvas dataframe by canvas ID or table name. |
+| `eia_dataframe_drop` | Drops a DataCanvas dataframe, freeing its memory. Only exposed when `EIA_DATAFRAME_DROP_ENABLED=true`. |
 
 ### `eia_browse_routes`
 
@@ -225,7 +228,7 @@ All configuration is validated at startup via Zod schemas in `src/config/server-
 |:----------|:--------|
 | `src/index.ts` | `createApp()` entry point — registers tools and inits services. |
 | `src/config` | Server-specific environment variable parsing and validation with Zod. |
-| `src/mcp-server/tools` | Tool definitions (`*.tool.ts`). Four tools covering browse, describe, search, and query. |
+| `src/mcp-server/tools` | Tool definitions (`*.tool.ts`). Seven tools: browse, describe, search, query, and three DataCanvas dataframe tools. |
 | `src/services/eia` | EIA API v2 service — HTTP client, route tree cache, Fuse.js index, facet fan-out. |
 | `tests/` | Unit and integration tests mirroring `src/`. |
 | `docs/` | Design and idea documents (`design.md`, `idea.md`). |

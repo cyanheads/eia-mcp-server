@@ -1,6 +1,6 @@
 # eia-mcp-server - Directory Structure
 
-Generated on: 2026-05-22 03:31:13
+Generated on: 2026-05-22 06:41:03
 
 ```text
 eia-mcp-server/
@@ -28,6 +28,7 @@ eia-mcp-server/
 │   ├── clean.ts
 │   ├── devcheck.ts
 │   ├── lint-mcp.ts
+│   ├── list-skills.ts
 │   ├── split-changelog.ts
 │   └── tree.ts
 ├── skills/
@@ -101,6 +102,8 @@ eia-mcp-server/
 │   └── tool-defs-analysis/
 │       └── SKILL.md
 ├── src/
+│   ├── config/
+│   │   └── server-config.ts
 │   ├── mcp-server/
 │   │   ├── prompts/
 │   │   │   └── definitions/
@@ -108,22 +111,46 @@ eia-mcp-server/
 │   │   │   └── definitions/
 │   │   └── tools/
 │   │       └── definitions/
-│   │           └── echo.tool.ts
+│   │           ├── browse-routes.tool.ts
+│   │           ├── dataframe-describe.tool.ts
+│   │           ├── dataframe-drop.tool.ts
+│   │           ├── dataframe-query.tool.ts
+│   │           ├── describe-route.tool.ts
+│   │           ├── query-route.tool.ts
+│   │           └── search-routes.tool.ts
+│   ├── services/
+│   │   ├── canvas-bridge/
+│   │   │   ├── canvas-bridge.ts
+│   │   │   └── sql-gate-extras.ts
+│   │   └── eia/
+│   │       ├── eia-service.ts
+│   │       ├── route-cache.ts
+│   │       └── types.ts
 │   └── index.ts
 ├── tests/
 │   ├── prompts/
 │   ├── resources/
+│   ├── services/
+│   │   └── route-cache.test.ts
 │   └── tools/
-│       └── echo.tool.test.ts
+│       ├── browse-routes.tool.test.ts
+│       ├── dataframe-describe.tool.test.ts
+│       ├── dataframe-drop.tool.test.ts
+│       ├── dataframe-query.tool.test.ts
+│       ├── describe-route.tool.test.ts
+│       ├── query-route.tool.test.ts
+│       └── search-routes.tool.test.ts
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
 ├── biome.json
 ├── bun.lock
+├── CHANGELOG.md
 ├── CLAUDE.md
 ├── devcheck.config.json
 ├── Dockerfile
 ├── package.json
+├── README.md
 ├── server.json
 ├── tsconfig.build.json
 ├── tsconfig.json

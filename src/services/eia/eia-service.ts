@@ -1,0 +1,523 @@
+/**
+ * @fileoverview EIA API v2 service. Wraps api.eia.gov/v2 with retry/timeout,
+ * route tree caching, per-route facet metadata caching, and Fuse.js fuzzy
+ * search. Exposes browse, describe, query, and search methods consumed by MCP
+ * tool handlers. Rate-limit detection: EIA returns `OVER_RATE_LIMIT` in the
+ * response body — classified as ServiceUnavailable (retryable).
+ * @module services/eia/eia-service
+ */
+
+import type { Context } from '@cyanheads/mcp-ts-core';
+import { invalidParams, notFound, serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
+import { withRetry } from '@cyanheads/mcp-ts-core/utils';
+import { getServerConfig } from '@/config/server-config.js';
+import {
+  addSteoSeriesToIndex,
+  getChildren,
+  getIndexSize,
+  getNode,
+  initRouteCache,
+  isLeafNode,
+  isRouteCacheReady,
+  searchRoutes,
+} from './route-cache.js';
+import type {
+  DataResponse,
+  DataRow,
+  Facet,
+  RawFacetResponse,
+  RawFrequency,
+  RawRouteNode,
+  RouteEntry,
+  RouteMetadata,
+  SearchIndexEntry,
+} from './types.js';
+
+/** Per-route merged metadata cache (populated by describe). */
+const _routeMetaCache = new Map<string, RouteMetadata>();
+
+/** Pending initialization promise (prevents duplicate warm-up). */
+let _initPromise: Promise<void> | undefined;
+
+class EiaApiService {
+  private get baseUrl(): string {
+    return getServerConfig().baseUrl;
+  }
+
+  private get apiKey(): string {
+    return getServerConfig().apiKey;
+  }
+
+  private buildUrl(path: string, params: Record<string, string | string[]> = {}): string {
+    const url = new URL(`${this.baseUrl}/${path}`);
+    url.searchParams.set('api_key', this.apiKey);
+    for (const [key, value] of Object.entries(params)) {
+      if (Array.isArray(value)) {
+        for (const v of value) url.searchParams.append(key, v);
+      } else {
+        url.searchParams.set(key, value);
+      }
+    }
+    return url.toString();
+  }
+
+  private fetchJson<T>(
+    path: string,
+    params: Record<string, string | string[]> = {},
+    ctx: Context,
+  ): Promise<T> {
+    const url = this.buildUrl(path, params);
+    return withRetry(
+      async () => {
+        const response = await fetch(url, { signal: ctx.signal });
+        const text = await response.text();
+
+        if (/^\s*<(!DOCTYPE\s+html|html[\s>])/i.test(text)) {
+          throw serviceUnavailable('EIA API returned HTML — likely rate-limited or unavailable.', {
+            reason: 'rate_limited',
+          });
+        }
+
+        if (!response.ok) {
+          if (response.status === 429 || text.includes('OVER_RATE_LIMIT')) {
+            throw serviceUnavailable('EIA rate limit exceeded.', {
+              reason: 'rate_limited',
+            });
+          }
+          throw serviceUnavailable(`EIA API returned HTTP ${response.status}.`, {
+            status: response.status,
+          });
+        }
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          throw serviceUnavailable('EIA API returned non-JSON response.', {
+            reason: 'rate_limited',
+          });
+        }
+
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          'response' in parsed &&
+          typeof (parsed as Record<string, unknown>).response === 'string' &&
+          ((parsed as { response: string }).response as string).includes('OVER_RATE_LIMIT')
+        ) {
+          throw serviceUnavailable('EIA rate limit exceeded (OVER_RATE_LIMIT).', {
+            reason: 'rate_limited',
+          });
+        }
+
+        return parsed as T;
+      },
+      {
+        operation: 'EiaApiService.fetchJson',
+        baseDelayMs: 1000,
+        signal: ctx.signal,
+      },
+    );
+  }
+
+  /**
+   * Warm the route tree cache. Called lazily on first browse/search.
+   * Fetches top-level routes, recursively discovers children via the cache
+   * structure from GET /v2/ and per-node GETs, then builds the Fuse.js index.
+   * STEO series are fetched in parallel and appended to the index.
+   */
+  async ensureCacheWarmed(ctx: Context): Promise<void> {
+    if (isRouteCacheReady()) return;
+
+    if (_initPromise) {
+      await _initPromise;
+      return;
+    }
+
+    _initPromise = this.warmCache(ctx);
+    try {
+      await _initPromise;
+    } finally {
+      _initPromise = undefined;
+    }
+  }
+
+  private async warmCache(ctx: Context): Promise<void> {
+    ctx.log.info('Warming EIA route tree cache');
+
+    // Fetch root to get top-level route IDs
+    const rootResponse = await this.fetchJson<{ response: { routes: RawRouteNode[] } }>(
+      '',
+      {},
+      ctx,
+    );
+    const topLevelNodes = rootResponse?.response?.routes ?? [];
+
+    if (topLevelNodes.length === 0) {
+      throw serviceUnavailable('EIA root endpoint returned no routes.');
+    }
+
+    // For each top-level node, fetch its metadata to discover sub-routes and
+    // leaf status. We do this recursively until we hit leaf nodes.
+    // Strategy: fetch each top-level node and recurse into non-leaf children.
+    const fullTree = await this.buildRouteTree(topLevelNodes, ctx);
+
+    // Build route map and index (without STEO series initially)
+    initRouteCache(fullTree, []);
+
+    // Fetch STEO series in the background to populate the index
+    this.fetchSteoSeries(ctx).catch((err) => {
+      ctx.log.warning('Failed to index STEO series', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
+    ctx.log.info('EIA route tree cache warmed', { indexSize: getIndexSize() });
+  }
+
+  private async buildRouteTree(
+    nodes: RawRouteNode[],
+    ctx: Context,
+    depth = 0,
+  ): Promise<RawRouteNode[]> {
+    // Limit recursion depth to avoid excessive API calls
+    if (depth > 5) return nodes;
+
+    const enriched = await Promise.all(
+      nodes.map(async (node): Promise<RawRouteNode> => {
+        // If the node already has sub-routes or leaf indicators, use as-is
+        if (node.routes?.length || node.frequency || node.facets || node.data) {
+          if (node.routes?.length) {
+            const children = await this.buildRouteTree(node.routes, ctx, depth + 1);
+            return { ...node, routes: children };
+          }
+          return node;
+        }
+
+        // Otherwise fetch the node's metadata to find out
+        try {
+          const resp = await this.fetchJson<{ response: RawRouteNode }>(node.id, {}, ctx);
+          const fetched = resp?.response;
+          if (!fetched) return node;
+
+          const merged = { ...node, ...fetched };
+          if (merged.routes?.length) {
+            const children = await this.buildRouteTree(merged.routes, ctx, depth + 1);
+            return { ...merged, routes: children };
+          }
+          return merged;
+        } catch {
+          return node;
+        }
+      }),
+    );
+
+    return enriched;
+  }
+
+  private async fetchSteoSeries(ctx: Context): Promise<void> {
+    // Fetch STEO series via facet endpoint
+    const resp = await this.fetchJson<{
+      response: {
+        totalFacets: number;
+        facets: Array<{ id: string; name: string; alias?: string }>;
+      };
+    }>('steo/facet/seriesId', {}, ctx);
+    const facets = resp?.response?.facets ?? [];
+    if (facets.length === 0) return;
+
+    const entries: SearchIndexEntry[] = facets.map((f) => ({
+      route: 'steo',
+      name: f.name,
+      description: `STEO series: ${f.name} (${f.id})${f.alias ? ` — ${f.alias}` : ''}`,
+      isLeaf: true,
+      category: 'steo',
+    }));
+
+    addSteoSeriesToIndex(entries);
+    ctx.log.info('STEO series indexed', { count: entries.length });
+  }
+
+  /**
+   * Browse child routes at a given path. Returns list of children with leaf
+   * classification.
+   */
+  async browse(
+    path: string | undefined,
+    ctx: Context,
+  ): Promise<{
+    path: string;
+    children: RouteEntry[];
+    isLeaf: boolean;
+  }> {
+    await this.ensureCacheWarmed(ctx);
+
+    const normalizedPath = path?.trim() ?? '';
+
+    // Check if the path itself is a leaf
+    if (normalizedPath) {
+      const node = getNode(normalizedPath);
+      if (!node) {
+        throw notFound(`Route "${normalizedPath}" not found in the EIA taxonomy.`, {
+          reason: 'route_not_found',
+          recovery: {
+            hint: 'Call eia_browse_routes without a path to see valid top-level categories.',
+          },
+        });
+      }
+
+      const selfIsLeaf = isLeafNode(node);
+      if (selfIsLeaf) {
+        return { path: normalizedPath, children: [], isLeaf: true };
+      }
+
+      const childEntries = getChildren(normalizedPath);
+      const children: RouteEntry[] = childEntries.map(({ id, route, node: childNode }) => ({
+        id,
+        name: childNode.name,
+        description: childNode.description ?? '',
+        route,
+        isLeaf: isLeafNode(childNode),
+      }));
+
+      return { path: normalizedPath, children, isLeaf: false };
+    }
+
+    // Root browse
+    const rootChildren = getChildren('');
+    const children: RouteEntry[] = rootChildren.map(({ id, route, node }) => ({
+      id,
+      name: node.name,
+      description: node.description ?? '',
+      route,
+      isLeaf: isLeafNode(node),
+    }));
+
+    return { path: '', children, isLeaf: false };
+  }
+
+  /**
+   * Describe a leaf route — returns full metadata including facets with values.
+   * Results are cached per-route to avoid repeat fan-out.
+   */
+  async describe(route: string, ctx: Context): Promise<RouteMetadata> {
+    const cached = _routeMetaCache.get(route);
+    if (cached) return cached;
+
+    await this.ensureCacheWarmed(ctx);
+
+    const node = route ? getNode(route) : undefined;
+    if (!node && route) {
+      // Try fetching directly from EIA in case route tree walk missed it
+      await this.fetchAndCacheMetadata(route, ctx);
+      const meta = _routeMetaCache.get(route);
+      if (!meta) {
+        throw notFound(`Route "${route}" not found in the EIA taxonomy.`, {
+          reason: 'route_not_found',
+          recovery: {
+            hint: 'Use eia_browse_routes or eia_search_routes to discover valid route paths.',
+          },
+        });
+      }
+      return meta;
+    }
+
+    if (node && !isLeafNode(node)) {
+      throw invalidParams(`Route "${route}" is a category, not a leaf — it has no data to query.`, {
+        reason: 'route_not_queryable',
+        recovery: {
+          hint: 'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',
+        },
+      });
+    }
+
+    await this.fetchAndCacheMetadata(route, ctx);
+    const meta = _routeMetaCache.get(route);
+    if (!meta) {
+      throw notFound(`Could not retrieve metadata for route "${route}".`, {
+        reason: 'route_not_found',
+      });
+    }
+    return meta;
+  }
+
+  private async fetchAndCacheMetadata(route: string, ctx: Context): Promise<void> {
+    // Fetch route metadata
+    const metaResp = await this.fetchJson<{ response: RawRouteNode }>(`${route}`, {}, ctx);
+    const rawNode = metaResp?.response;
+    if (!rawNode) {
+      throw notFound(`Route "${route}" returned empty metadata.`, { reason: 'route_not_found' });
+    }
+
+    if (!isLeafNode(rawNode)) {
+      throw invalidParams(`Route "${route}" is a category, not a leaf.`, {
+        reason: 'route_not_queryable',
+        recovery: {
+          hint: 'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',
+        },
+      });
+    }
+
+    // Fan out facet value fetches
+    const facetMetas = rawNode.facets ?? [];
+    const facetResults = await Promise.all(
+      facetMetas.map(async (f): Promise<Facet> => {
+        try {
+          const resp = await this.fetchJson<{ response: RawFacetResponse }>(
+            `${route}/facet/${f.id}`,
+            {},
+            ctx,
+          );
+          const values = resp?.response?.facets ?? [];
+          return {
+            id: f.id,
+            description: f.description,
+            values: values.map((v) => ({
+              id: v.id,
+              name: v.name,
+              ...(v.alias !== undefined && { alias: v.alias }),
+            })),
+          };
+        } catch {
+          // If a single facet fetch fails, return with empty values
+          return { id: f.id, description: f.description, values: [] };
+        }
+      }),
+    );
+
+    // Normalize data columns
+    const dataObj = rawNode.data ?? {};
+    const dataColumns = Object.entries(dataObj).map(([id, meta]) => ({
+      id,
+      alias: meta.alias,
+      units: meta.units,
+    }));
+
+    const frequencies: RawFrequency[] = rawNode.frequency ?? [];
+
+    const meta: RouteMetadata = {
+      route,
+      description: rawNode.description ?? '',
+      facets: facetResults,
+      dataColumns,
+      frequencies,
+      dateRange: {
+        start: rawNode.startPeriod ?? '',
+        end: rawNode.endPeriod ?? '',
+      },
+      defaultFrequency: rawNode.defaultFrequency ?? frequencies[0]?.id ?? '',
+      defaultDateFormat: rawNode.defaultDateFormat ?? '',
+    };
+
+    _routeMetaCache.set(route, meta);
+  }
+
+  /**
+   * Fetch data from a leaf route. Returns rows (all string values per EIA API),
+   * total count, and any warnings.
+   */
+  async query(
+    route: string,
+    opts: {
+      filters?: Record<string, string | string[]>;
+      columns?: string[];
+      frequency?: string;
+      start?: string;
+      end?: string;
+      sort?: Array<{ column: string; direction: 'asc' | 'desc' }>;
+      offset?: number;
+      length?: number;
+    },
+    ctx: Context,
+  ): Promise<DataResponse> {
+    if ((opts.length ?? 100) > 5000) {
+      throw invalidParams('length exceeds EIA maximum of 5000 rows per request.', {
+        reason: 'length_exceeded',
+        maxLength: 5000,
+        recovery: {
+          hint: 'Reduce length to 5000 or use offset pagination to retrieve more rows.',
+        },
+      });
+    }
+
+    const params: Record<string, string | string[]> = {};
+
+    if (opts.frequency) params['frequency'] = opts.frequency;
+    if (opts.start) params['start'] = opts.start;
+    if (opts.end) params['end'] = opts.end;
+    if (opts.offset !== undefined) params['offset'] = String(opts.offset);
+    if (opts.length !== undefined) params['length'] = String(opts.length);
+
+    if (opts.columns?.length) {
+      params['data[]'] = opts.columns;
+    }
+
+    if (opts.filters) {
+      for (const [facetId, values] of Object.entries(opts.filters)) {
+        const arr = Array.isArray(values) ? values : [values];
+        params[`facets[${facetId}][]`] = arr;
+      }
+    }
+
+    for (const [i, s] of (opts.sort ?? []).entries()) {
+      params[`sort[${i}][column]`] = s.column;
+      params[`sort[${i}][direction]`] = s.direction;
+    }
+
+    const resp = await this.fetchJson<{
+      response: {
+        total: string;
+        dateFormat?: string;
+        frequency?: string;
+        data: DataRow[];
+        warnings?: string[];
+      };
+    }>(`${route}/data/`, params, ctx);
+
+    const response = resp?.response;
+    if (!response) {
+      throw notFound(`Route "${route}" returned no data response.`, { reason: 'no_data' });
+    }
+
+    const total = parseInt(response.total ?? '0', 10);
+    const data: DataRow[] = response.data ?? [];
+
+    return {
+      total,
+      dateFormat: response.dateFormat ?? '',
+      frequency: response.frequency ?? opts.frequency ?? '',
+      data,
+      warnings: response.warnings ?? undefined,
+    };
+  }
+
+  /** Fuzzy search across the route index. */
+  async search(
+    query: string,
+    limit: number,
+    ctx: Context,
+  ): Promise<{ results: Array<{ entry: SearchIndexEntry; score: number }>; totalIndexed: number }> {
+    await this.ensureCacheWarmed(ctx);
+    const results = searchRoutes(query, limit);
+    return { results, totalIndexed: getIndexSize() };
+  }
+}
+
+let _service: EiaApiService | undefined;
+
+export function initEiaApiService(): void {
+  _service = new EiaApiService();
+}
+
+export function getEiaApiService(): EiaApiService {
+  if (!_service)
+    throw new Error('EiaApiService not initialized — call initEiaApiService() in setup()');
+  return _service;
+}
+
+/** Reset for tests. */
+export function _resetEiaApiService(): void {
+  _service = undefined;
+  _routeMetaCache.clear();
+  _initPromise = undefined;
+}
