@@ -1,9 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "eia-mcp-server",
-  "description": "",
+  "name": "io.github.cyanheads/eia-mcp-server",
+  "description": "Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.",
   "repository": {
-    "url": "",
+    "url": "https://github.com/cyanheads/eia-mcp-server",
     "source": "github"
   },
   "version": "0.1.0",
@@ -11,8 +11,8 @@
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "eia-mcp-server",
-      "runtimeHint": "node",
+      "identifier": "@cyanheads/eia-mcp-server",
+      "runtimeHint": "bun",
       "version": "0.1.0",
       "packageArguments": [
         {
@@ -25,6 +25,12 @@
         }
       ],
       "environmentVariables": [
+        {
+          "name": "EIA_API_KEY",
+          "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter.",
+          "format": "string",
+          "isRequired": true
+        },
         {
           "name": "MCP_LOG_LEVEL",
           "description": "Sets the minimum log level for output (e.g., 'debug', 'info', 'warn').",
@@ -40,8 +46,8 @@
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "eia-mcp-server",
-      "runtimeHint": "node",
+      "identifier": "@cyanheads/eia-mcp-server",
+      "runtimeHint": "bun",
       "version": "0.1.0",
       "packageArguments": [
         {
@@ -54,6 +60,12 @@
         }
       ],
       "environmentVariables": [
+        {
+          "name": "EIA_API_KEY",
+          "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter.",
+          "format": "string",
+          "isRequired": true
+        },
         {
           "name": "MCP_HTTP_HOST",
           "description": "The hostname for the HTTP server.",
@@ -74,6 +86,12 @@
           "format": "string",
           "isRequired": false,
           "default": "/mcp"
+        },
+        {
+          "name": "MCP_PUBLIC_URL",
+          "description": "Public origin override for deployments behind a TLS-terminating reverse proxy (e.g. https://mcp.example.com).",
+          "format": "string",
+          "isRequired": false
         },
         {
           "name": "MCP_AUTH_MODE",
