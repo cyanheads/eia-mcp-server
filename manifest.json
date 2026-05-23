@@ -4,6 +4,12 @@
   "version": "0.1.2",
   "description": "Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.",
   "author": { "name": "cyanheads" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cyanheads/eia-mcp-server"
+  },
+  "homepage": "https://github.com/cyanheads/eia-mcp-server#readme",
+  "license": "Apache-2.0",
   "server": {
     "type": "node",
     "entry_point": "dist/index.js",
@@ -11,7 +17,7 @@
       "command": "node",
       "args": ["${__dirname}/dist/index.js"],
       "env": {
-        "EIA_API_KEY": "",
+        "EIA_API_KEY": "${user_config.eia_api_key}",
         "MCP_TRANSPORT_TYPE": "stdio",
         "MCP_AUTH_MODE": "none",
         "NODE_ENV": "production"
@@ -24,9 +30,12 @@
   "tools_generated": true,
   "prompts_generated": true,
   "user_config": {
-    "EIA_API_KEY": {
-      "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter.",
-      "required": true
+    "eia_api_key": {
+      "type": "string",
+      "title": "EIA API Key",
+      "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter. Register at https://www.eia.gov/opendata/register.php.",
+      "required": true,
+      "sensitive": true
     }
   }
 }
