@@ -80,7 +80,7 @@ export const queryRouteTool = tool('eia_query_route', {
   output: z.object({
     route: z.string().describe('The route path queried.'),
     data: z
-      .array(z.object({}).passthrough())
+      .array(z.object({}).passthrough().describe('A single data row with dynamic column keys.'))
       .describe(
         'Preview rows. All numeric values are strings per the EIA API (e.g. "9.13"). Cast to DOUBLE in SQL for arithmetic: CAST(value AS DOUBLE). Per-column units appear as {col}-units fields inline in each row. Keys are dynamic column IDs from the EIA route.',
       ),

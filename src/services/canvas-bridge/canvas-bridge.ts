@@ -147,14 +147,14 @@ export class CanvasBridge {
     await this.sweepExpired(ctx);
     const instance = await this.acquireSharedCanvas(ctx);
 
-    const registerAs = options.registerAs;
     const result = await instance.query(sql, {
       ...(options.preview !== undefined && { preview: options.preview }),
       ...(options.rowLimit !== undefined && { rowLimit: options.rowLimit }),
-      ...(registerAs !== undefined && { registerAs }),
+      ...(options.registerAs !== undefined && { registerAs: options.registerAs }),
       signal: ctx.signal,
     });
 
+    const registerAs = options.registerAs;
     let meta: DataframeMeta | undefined;
     if (registerAs && result.tableName) {
       const now = Date.now();

@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.cyanheads/eia-mcp-server",
-  "description": "Browse and query the EIA API v2 — electricity, petroleum, natural gas, coal, and forecasts via MCP.",
+  "description": "Browse and query the EIA API v2 — electricity, petroleum, natural gas, coal, forecasts via MCP.",
   "repository": {
     "url": "https://github.com/cyanheads/eia-mcp-server",
     "source": "github"
@@ -30,6 +30,26 @@
           "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter.",
           "format": "string",
           "isRequired": true
+        },
+        {
+          "name": "EIA_DATASET_TTL_SECONDS",
+          "description": "Per-table TTL for DataCanvas dataframes in seconds.",
+          "format": "string",
+          "isRequired": false,
+          "default": "86400"
+        },
+        {
+          "name": "EIA_DATAFRAME_DROP_ENABLED",
+          "description": "Set to 'true' to expose eia_dataframe_drop for manual canvas cleanup.",
+          "format": "string",
+          "isRequired": false,
+          "default": "false"
+        },
+        {
+          "name": "CANVAS_PROVIDER_TYPE",
+          "description": "Set to 'duckdb' to enable DataCanvas spillover for large query result sets (Node.js only).",
+          "format": "string",
+          "isRequired": false
         },
         {
           "name": "MCP_LOG_LEVEL",
@@ -65,6 +85,26 @@
           "description": "Free API key from api.eia.gov. Required — all requests use this as the api_key query parameter.",
           "format": "string",
           "isRequired": true
+        },
+        {
+          "name": "EIA_DATASET_TTL_SECONDS",
+          "description": "Per-table TTL for DataCanvas dataframes in seconds.",
+          "format": "string",
+          "isRequired": false,
+          "default": "86400"
+        },
+        {
+          "name": "EIA_DATAFRAME_DROP_ENABLED",
+          "description": "Set to 'true' to expose eia_dataframe_drop for manual canvas cleanup.",
+          "format": "string",
+          "isRequired": false,
+          "default": "false"
+        },
+        {
+          "name": "CANVAS_PROVIDER_TYPE",
+          "description": "Set to 'duckdb' to enable DataCanvas spillover for large query result sets (Node.js only).",
+          "format": "string",
+          "isRequired": false
         },
         {
           "name": "MCP_HTTP_HOST",

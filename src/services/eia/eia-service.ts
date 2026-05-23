@@ -123,13 +123,11 @@ class EiaApiService {
           });
         }
 
-        if (
-          typeof parsed === 'object' &&
-          parsed !== null &&
-          'response' in parsed &&
-          typeof (parsed as Record<string, unknown>).response === 'string' &&
-          ((parsed as { response: string }).response as string).includes('OVER_RATE_LIMIT')
-        ) {
+        const parsedResponse =
+          typeof parsed === 'object' && parsed !== null && 'response' in parsed
+            ? (parsed as { response: unknown }).response
+            : undefined;
+        if (typeof parsedResponse === 'string' && parsedResponse.includes('OVER_RATE_LIMIT')) {
           throw serviceUnavailable('EIA rate limit exceeded (OVER_RATE_LIMIT).', {
             reason: 'rate_limited',
           });
@@ -431,11 +429,10 @@ class EiaApiService {
     const dataObj = rawNode.data ?? {};
     const dataColumns = Object.entries(dataObj)
       .filter(([, meta]) => meta !== null && typeof meta === 'object' && !Array.isArray(meta))
-      .map(([id, meta]) => ({
-        id,
-        alias: (meta as { alias: string; units: string }).alias,
-        units: (meta as { alias: string; units: string }).units,
-      }));
+      .map(([id, meta]) => {
+        const col = meta as { alias: string; units: string };
+        return { id, alias: col.alias, units: col.units };
+      });
 
     // Handle the value-array variant: { value: [] }
     if (dataColumns.length === 0 && 'value' in dataObj && Array.isArray(dataObj.value)) {

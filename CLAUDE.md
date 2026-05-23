@@ -95,7 +95,10 @@ import { parseEnvConfig } from '@cyanheads/mcp-ts-core/config';
 const ServerConfigSchema = z.object({
   apiKey: z.string().describe('EIA API key'),
   baseUrl: z.string().url().default('https://api.eia.gov/v2').describe('EIA API base URL'),
-  canvasProvider: z.string().optional().describe('Canvas provider type (e.g. "duckdb")'),
+  datasetTtlSeconds: z.coerce.number().int().positive().default(86400)
+    .describe('Per-table TTL for canvas dataframes in seconds (default 24 h)'),
+  dataframeDropEnabled: z.preprocess((v) => v === 'true' || v === true, z.boolean())
+    .default(false).describe('Expose eia_dataframe_drop when true'),
 });
 
 let _config: z.infer<typeof ServerConfigSchema> | undefined;
@@ -103,7 +106,8 @@ export function getServerConfig(): z.infer<typeof ServerConfigSchema> {
   _config ??= parseEnvConfig(ServerConfigSchema, {
     apiKey: 'EIA_API_KEY',
     baseUrl: 'EIA_BASE_URL',
-    canvasProvider: 'CANVAS_PROVIDER_TYPE',
+    datasetTtlSeconds: 'EIA_DATASET_TTL_SECONDS',
+    dataframeDropEnabled: 'EIA_DATAFRAME_DROP_ENABLED',
   });
   return _config;
 }
@@ -174,16 +178,21 @@ src/
     server-config.ts                    # EIA-specific env vars (Zod schema)
   services/
     eia/
-      eia-service.ts                    # EIA API v2 service (init/accessor)
-      api-client.ts                     # HTTP client for api.eia.gov/v2
+      eia-service.ts                    # EIA API v2 service (init/accessor + HTTP client)
       route-cache.ts                    # In-process route tree cache + Fuse.js index
       types.ts                          # EIA domain types
+    canvas-bridge/
+      canvas-bridge.ts                  # DataCanvas bridge (register/describe/query/drop)
+      sql-gate-extras.ts                # System-catalog deny-list for read-only enforcement
   mcp-server/
     tools/definitions/
       browse-routes.tool.ts             # eia_browse_routes
       describe-route.tool.ts            # eia_describe_route
       search-routes.tool.ts             # eia_search_routes
       query-route.tool.ts               # eia_query_route
+      dataframe-describe.tool.ts        # eia_dataframe_describe
+      dataframe-query.tool.ts           # eia_dataframe_query
+      dataframe-drop.tool.ts            # eia_dataframe_drop (opt-in)
 ```
 
 ---

@@ -15,7 +15,6 @@
     "README.md",
     "LICENSE",
     "CLAUDE.md",
-    "AGENTS.md",
     "Dockerfile",
     "server.json"
   ],
@@ -47,8 +46,10 @@
     "natural-gas",
     "coal",
     "energy-data",
+    "energy-api",
     "steo",
     "us-energy",
+    "llm",
     "mcp",
     "mcp-server",
     "model-context-protocol",

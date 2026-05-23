@@ -1,6 +1,6 @@
 # eia-mcp-server - Directory Structure
 
-Generated on: 2026-05-23 10:50:10
+Generated on: 2026-05-23 14:18:22
 
 ```text
 eia-mcp-server/
@@ -147,6 +147,7 @@ eia-mcp-server/
 ├── .mcpbignore
 ├── biome.json
 ├── bun.lock
+├── bunfig.toml
 ├── CHANGELOG.md
 ├── CLAUDE.md
 ├── devcheck.config.json
