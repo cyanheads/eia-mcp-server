@@ -1,6 +1,6 @@
 # eia-mcp-server - Directory Structure
 
-Generated on: 2026-05-22 06:41:03
+Generated on: 2026-05-23 09:08:25
 
 ```text
 eia-mcp-server/
@@ -28,6 +28,7 @@ eia-mcp-server/
 │   ├── clean.ts
 │   ├── devcheck.ts
 │   ├── lint-mcp.ts
+│   ├── lint-packaging.ts
 │   ├── list-skills.ts
 │   ├── split-changelog.ts
 │   └── tree.ts
@@ -143,12 +144,14 @@ eia-mcp-server/
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
+├── .mcpbignore
 ├── biome.json
 ├── bun.lock
 ├── CHANGELOG.md
 ├── CLAUDE.md
 ├── devcheck.config.json
 ├── Dockerfile
+├── manifest.json
 ├── package.json
 ├── README.md
 ├── server.json

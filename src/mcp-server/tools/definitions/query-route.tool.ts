@@ -52,10 +52,12 @@ export const queryRouteTool = tool('eia_query_route', {
     end: z.string().optional().describe('Period end (same format as start).'),
     sort: z
       .array(
-        z.object({
-          column: z.string().describe('Column ID to sort by.'),
-          direction: z.enum(['asc', 'desc']).describe('Sort direction.'),
-        }),
+        z
+          .object({
+            column: z.string().describe('Column ID to sort by.'),
+            direction: z.enum(['asc', 'desc']).describe('Sort direction.'),
+          })
+          .describe('A sort criterion.'),
       )
       .optional()
       .describe('Result ordering.'),
@@ -78,9 +80,9 @@ export const queryRouteTool = tool('eia_query_route', {
   output: z.object({
     route: z.string().describe('The route path queried.'),
     data: z
-      .array(z.record(z.string(), z.union([z.string(), z.null()])))
+      .array(z.object({}).passthrough())
       .describe(
-        'Preview rows. All numeric values are strings per the EIA API (e.g. "9.13"). Cast to DOUBLE in SQL for arithmetic: CAST(value AS DOUBLE). Per-column units appear as {col}-units fields inline in each row.',
+        'Preview rows. All numeric values are strings per the EIA API (e.g. "9.13"). Cast to DOUBLE in SQL for arithmetic: CAST(value AS DOUBLE). Per-column units appear as {col}-units fields inline in each row. Keys are dynamic column IDs from the EIA route.',
       ),
     total: z.number().describe('Total matching rows in the EIA dataset.'),
     returned_count: z
@@ -125,13 +127,13 @@ export const queryRouteTool = tool('eia_query_route', {
     },
     {
       reason: 'invalid_facet',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'An unknown facet key was used in filters.',
       recovery: 'Call eia_describe_route to see valid facet IDs for this route.',
     },
     {
       reason: 'invalid_facet_value',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A facet value is not in the valid set for the facet.',
       recovery: 'Call eia_describe_route to list valid values for each facet dimension.',
     },
@@ -144,7 +146,7 @@ export const queryRouteTool = tool('eia_query_route', {
     },
     {
       reason: 'length_exceeded',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'length parameter exceeds the EIA maximum of 5000.',
       recovery: 'Reduce length to 5000 or use offset pagination for larger result sets.',
     },
@@ -193,7 +195,7 @@ export const queryRouteTool = tool('eia_query_route', {
 
     const result: {
       route: string;
-      data: Array<Record<string, string | null>>;
+      data: Array<Record<string, unknown>>;
       total: number;
       returned_count: number;
       frequency: string;
@@ -219,8 +221,7 @@ export const queryRouteTool = tool('eia_query_route', {
     // DataCanvas spillover — opt-in via CANVAS_PROVIDER_TYPE=duckdb
     const bridge = getCanvasBridge();
     if (bridge && dataResp.data.length > 0) {
-      const canvasCtx = ctx as unknown as Parameters<typeof bridge.registerDataframe>[0];
-      const registered = await bridge.registerDataframe(canvasCtx, {
+      const registered = await bridge.registerDataframe(ctx, {
         rows: dataResp.data,
         sourceTool: 'eia_query_route',
         queryParams: {

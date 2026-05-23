@@ -32,21 +32,23 @@ export const searchRoutesTool = tool('eia_search_routes', {
   output: z.object({
     results: z
       .array(
-        z.object({
-          route: z
-            .string()
-            .describe('Route path — usable directly in eia_describe_route or eia_query_route.'),
-          name: z.string().describe('Human-readable route name.'),
-          description: z.string().describe('Route description.'),
-          score: z
-            .number()
-            .describe('Fuzzy match score: 0 = exact, 1 = no match. Lower is better.'),
-          isLeaf: z
-            .boolean()
-            .describe(
-              'True when the route is a queryable leaf; false when it has sub-routes to browse.',
-            ),
-        }),
+        z
+          .object({
+            route: z
+              .string()
+              .describe('Route path — usable directly in eia_describe_route or eia_query_route.'),
+            name: z.string().describe('Human-readable route name.'),
+            description: z.string().describe('Route description.'),
+            score: z
+              .number()
+              .describe('Fuzzy match score: 0 = exact, 1 = no match. Lower is better.'),
+            isLeaf: z
+              .boolean()
+              .describe(
+                'True when the route is a queryable leaf; false when it has sub-routes to browse.',
+              ),
+          })
+          .describe('A search result entry.'),
       )
       .describe('Ranked matches, best first.'),
     total_indexed: z

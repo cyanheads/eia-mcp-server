@@ -27,15 +27,19 @@ export const browseRoutesTool = tool('eia_browse_routes', {
     path: z.string().describe('The path that was browsed (empty string for root).'),
     children: z
       .array(
-        z.object({
-          id: z.string().describe('Route segment ID.'),
-          name: z.string().describe('Human-readable name.'),
-          description: z.string().describe('Route description.'),
-          route: z
-            .string()
-            .describe('Full route path usable in eia_describe_route or eia_query_route.'),
-          isLeaf: z.boolean().describe('True when this child is a queryable leaf route with data.'),
-        }),
+        z
+          .object({
+            id: z.string().describe('Route segment ID.'),
+            name: z.string().describe('Human-readable name.'),
+            description: z.string().describe('Route description.'),
+            route: z
+              .string()
+              .describe('Full route path usable in eia_describe_route or eia_query_route.'),
+            isLeaf: z
+              .boolean()
+              .describe('True when this child is a queryable leaf route with data.'),
+          })
+          .describe('A child route entry.'),
       )
       .describe('Child entries under the browsed path.'),
     isLeaf: z
@@ -54,7 +58,7 @@ export const browseRoutesTool = tool('eia_browse_routes', {
     },
   ],
 
-  async handler(input, ctx) {
+  handler(input, ctx) {
     ctx.log.info('Executing eia_browse_routes', { path: input.path });
     return getEiaApiService().browse(input.path, ctx);
   },

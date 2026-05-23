@@ -30,38 +30,46 @@ export const describeRouteTool = tool('eia_describe_route', {
     description: z.string().describe('Human-readable description of the dataset.'),
     facets: z
       .array(
-        z.object({
-          id: z.string().describe('Facet ID — use as filter key in eia_query_route.'),
-          description: z.string().describe('Facet description.'),
-          values: z
-            .array(
-              z.object({
-                id: z.string().describe('Facet value ID — use as filter value.'),
-                name: z.string().describe('Human-readable name.'),
-                alias: z.string().optional().describe('Short alias, when provided by EIA.'),
-              }),
-            )
-            .describe('Valid values for this facet dimension.'),
-        }),
+        z
+          .object({
+            id: z.string().describe('Facet ID — use as filter key in eia_query_route.'),
+            description: z.string().describe('Facet description.'),
+            values: z
+              .array(
+                z
+                  .object({
+                    id: z.string().describe('Facet value ID — use as filter value.'),
+                    name: z.string().describe('Human-readable name.'),
+                    alias: z.string().optional().describe('Short alias, when provided by EIA.'),
+                  })
+                  .describe('A valid facet value.'),
+              )
+              .describe('Valid values for this facet dimension.'),
+          })
+          .describe('A filterable dimension for this route.'),
       )
       .describe('Filterable dimensions. Each facet has an ID and a set of valid values.'),
     data_columns: z
       .array(
-        z.object({
-          id: z.string().describe('Column ID — use in the columns parameter of eia_query_route.'),
-          alias: z.string().describe('Human-readable column alias.'),
-          units: z.string().describe('Measurement units (e.g. "cents per kilowatt-hour").'),
-        }),
+        z
+          .object({
+            id: z.string().describe('Column ID — use in the columns parameter of eia_query_route.'),
+            alias: z.string().describe('Human-readable column alias.'),
+            units: z.string().describe('Measurement units (e.g. "cents per kilowatt-hour").'),
+          })
+          .describe('A data column available for this route.'),
       )
       .describe('Data columns available for this route.'),
     frequencies: z
       .array(
-        z.object({
-          id: z.string().describe('Frequency ID (e.g. "monthly", "annual").'),
-          description: z.string().describe('Human-readable description.'),
-          query: z.string().describe('API query value for this frequency.'),
-          format: z.string().describe('Period format string (e.g. "YYYY-MM", "YYYY").'),
-        }),
+        z
+          .object({
+            id: z.string().describe('Frequency ID (e.g. "monthly", "annual").'),
+            description: z.string().describe('Human-readable description.'),
+            query: z.string().describe('API query value for this frequency.'),
+            format: z.string().describe('Period format string (e.g. "YYYY-MM", "YYYY").'),
+          })
+          .describe('A frequency option for eia_query_route.'),
       )
       .describe('Valid frequency options for eia_query_route.'),
     date_range: z
@@ -85,7 +93,7 @@ export const describeRouteTool = tool('eia_describe_route', {
     },
     {
       reason: 'route_not_queryable',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'Route is a category node with sub-routes, not a queryable leaf.',
       recovery:
         'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',

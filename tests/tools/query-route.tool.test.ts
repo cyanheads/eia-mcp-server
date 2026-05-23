@@ -78,8 +78,8 @@ describe('queryRouteTool', () => {
     const input = queryRouteTool.input.parse({ route: 'electricity/retail-sales' });
     const result = await queryRouteTool.handler(input, ctx);
 
-    expect(typeof result.data[0]?.['sales']).toBe('string');
-    expect(result.data[0]?.['sales']).toBe('9.13');
+    expect(typeof result.data[0]?.sales).toBe('string');
+    expect(result.data[0]?.sales).toBe('9.13');
   });
 
   it('throws no_data when zero rows returned', async () => {

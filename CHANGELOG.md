@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.2](changelog/0.1.x/0.1.2.md) — 2026-05-23
+
+mcp-ts-core ^0.9.5, error code semantics for domain validation, MCPB bundle support.
+
 ## [0.1.1](changelog/0.1.x/0.1.1.md) — 2026-05-21
 
 Full tool surface implementation: EIA API service layer, four domain tools, three DataCanvas dataframe tools, and a complete test suite.

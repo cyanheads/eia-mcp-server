@@ -235,16 +235,15 @@ export class CanvasBridge {
   }
 
   private async acquireSharedCanvas(ctx: Context): Promise<CanvasInstance> {
-    const reqCtx = ctx as unknown as Parameters<DataCanvas['acquire']>[1];
     const stored = await ctx.state.get<string>(CANVAS_ID_KEY);
     if (stored) {
       try {
-        return await this.canvas.acquire(stored, reqCtx);
+        return await this.canvas.acquire(stored, ctx);
       } catch {
         await ctx.state.delete(CANVAS_ID_KEY);
       }
     }
-    const instance = await this.canvas.acquire(undefined, reqCtx);
+    const instance = await this.canvas.acquire(undefined, ctx);
     await ctx.state.set(CANVAS_ID_KEY, instance.canvasId);
     return instance;
   }

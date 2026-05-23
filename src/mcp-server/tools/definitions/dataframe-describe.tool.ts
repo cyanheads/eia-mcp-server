@@ -37,32 +37,36 @@ export const dataframeDescribeTool = tool('eia_dataframe_describe', {
   output: z.object({
     dataframes: z
       .array(
-        z.object({
-          name: z.string().describe('Canvas table name (df_<id>).'),
-          source_tool: z.string().describe('Tool that produced this dataframe.'),
-          query_params: z
-            .record(z.string(), z.unknown())
-            .describe('Input parameters the source tool was called with.'),
-          created_at: z.string().describe('ISO 8601 creation timestamp.'),
-          expires_at: z.string().describe('ISO 8601 expiry timestamp (sliding TTL).'),
-          row_count: z.number().describe('Rows materialized in the dataframe.'),
-          truncated: z
-            .boolean()
-            .describe('True when the EIA upstream had more rows than were registered.'),
-          max_rows: z
-            .number()
-            .optional()
-            .describe('Materialization cap that produced truncated, when applicable.'),
-          column_schema: z
-            .array(
-              z.object({
-                name: z.string().describe('Column name.'),
-                type: z.string().describe('DuckDB column type (VARCHAR for EIA data values).'),
-                nullable: z.boolean().describe('Whether the column permits NULL.'),
-              }),
-            )
-            .describe('Column schema (all EIA data columns are VARCHAR and nullable).'),
-        }),
+        z
+          .object({
+            name: z.string().describe('Canvas table name (df_<id>).'),
+            source_tool: z.string().describe('Tool that produced this dataframe.'),
+            query_params: z
+              .record(z.string(), z.unknown())
+              .describe('Input parameters the source tool was called with.'),
+            created_at: z.string().describe('ISO 8601 creation timestamp.'),
+            expires_at: z.string().describe('ISO 8601 expiry timestamp (sliding TTL).'),
+            row_count: z.number().describe('Rows materialized in the dataframe.'),
+            truncated: z
+              .boolean()
+              .describe('True when the EIA upstream had more rows than were registered.'),
+            max_rows: z
+              .number()
+              .optional()
+              .describe('Materialization cap that produced truncated, when applicable.'),
+            column_schema: z
+              .array(
+                z
+                  .object({
+                    name: z.string().describe('Column name.'),
+                    type: z.string().describe('DuckDB column type (VARCHAR for EIA data values).'),
+                    nullable: z.boolean().describe('Whether the column permits NULL.'),
+                  })
+                  .describe('A column in the dataframe schema.'),
+              )
+              .describe('Column schema (all EIA data columns are VARCHAR and nullable).'),
+          })
+          .describe('A canvas dataframe entry.'),
       )
       .describe('Active dataframes for this tenant, newest first. Empty when none are registered.'),
   }),

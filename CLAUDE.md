@@ -1,8 +1,8 @@
 # Agent Protocol
 
 **Server:** @cyanheads/eia-mcp-server
-**Version:** 0.1.0
-**Framework:** [@cyanheads/mcp-ts-core](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) `^0.9.1`
+**Version:** 0.1.2
+**Framework:** [@cyanheads/mcp-ts-core](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) `^0.9.5`
 **Engines:** Bun ≥1.3.0, Node ≥24.0.0
 
 > **Read the framework docs first:** `node_modules/@cyanheads/mcp-ts-core/CLAUDE.md` contains the full API reference — builders, Context, error codes, exports, patterns. This file covers server-specific conventions only.
@@ -264,16 +264,27 @@ When you complete a skill's checklist, check the boxes and add a completion time
 | `bun run build` | Compile TypeScript |
 | `bun run rebuild` | Clean + build |
 | `bun run clean` | Remove build artifacts |
-| `bun run devcheck` | Lint + format + typecheck + security |
+| `bun run devcheck` | Lint + format + typecheck + security + changelog sync |
+| `bun run audit:refresh` | Delete `bun.lock`, reinstall, re-audit. Use when `devcheck` flags a transitive advisory — stale lockfile can mask already-patched deps. If advisory survives, it's real. |
 | `bun run tree` | Generate directory structure doc |
 | `bun run format` | Auto-fix formatting |
 | `bun run test` | Run tests |
 | `bun run lint:mcp` | Validate MCP definitions against spec |
+| `bun run lint:packaging` | Validate env var alignment between `manifest.json` and `server.json` |
+| `bun run bundle` | Build and pack as `.mcpb` for one-click Claude Desktop install |
 | `bun run start:stdio` | Production mode (stdio) |
 | `bun run start:http` | Production mode (HTTP) |
 | `bun run changelog:build` | Regenerate `CHANGELOG.md` from per-version files |
 | `bun run changelog:check` | Verify `CHANGELOG.md` is in sync (used by devcheck) |
 | `bun run list-skills` | List available local skills (useful for sub-agents) |
+
+---
+
+## Bundling
+
+`bun run bundle` produces a `.mcpb` extension bundle for one-click install in Claude Desktop. MCPB is stdio-only — HTTP deployments are unaffected. Delete `manifest.json` and `.mcpbignore` if not needed; `lint:packaging` skips cleanly.
+
+**Adding an env var requires both files:** `server.json` (`environmentVariables[]`) and `manifest.json` (`mcp_config.env`). `lint:packaging` (run by `devcheck`) verifies the names match.
 
 ---
 
@@ -293,7 +304,7 @@ import { getEiaApiService } from '@/services/eia/eia-service.js';
 ## Checklist
 
 - [ ] Zod schemas: all fields have `.describe()`, only JSON-Schema-serializable types (no `z.custom()`, `z.date()`, `z.transform()`, `z.bigint()`, `z.symbol()`, `z.void()`, `z.map()`, `z.set()`, `z.function()`, `z.nan()`)
-- [ ] Optional nested objects: handler guards for empty inner values from form-based clients (`if (input.obj?.field && ...)`, not just `if (input.obj)`)
+- [ ] Optional nested objects: handler guards for empty inner values from form-based clients (`if (input.obj?.field && ...)`, not just `if (input.obj)`). When regex/length constraints matter, use `z.union([z.literal(''), z.string().regex(...).describe(...)])` — literal variants are exempt from `describe-on-fields`.
 - [ ] JSDoc `@fileoverview` + `@module` on every file
 - [ ] `ctx.log` for logging, `ctx.state` for storage
 - [ ] Handlers throw on failure — error factories or plain `Error`, no try/catch

@@ -8,7 +8,7 @@
  */
 
 import type { Context } from '@cyanheads/mcp-ts-core';
-import { invalidParams, notFound, serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
+import { notFound, serviceUnavailable, validationError } from '@cyanheads/mcp-ts-core/errors';
 import { withRetry } from '@cyanheads/mcp-ts-core/utils';
 import { getServerConfig } from '@/config/server-config.js';
 import {
@@ -323,12 +323,15 @@ class EiaApiService {
     }
 
     if (node && !isLeafNode(node)) {
-      throw invalidParams(`Route "${route}" is a category, not a leaf — it has no data to query.`, {
-        reason: 'route_not_queryable',
-        recovery: {
-          hint: 'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',
+      throw validationError(
+        `Route "${route}" is a category, not a leaf — it has no data to query.`,
+        {
+          reason: 'route_not_queryable',
+          recovery: {
+            hint: 'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',
+          },
         },
-      });
+      );
     }
 
     await this.fetchAndCacheMetadata(route, ctx);
@@ -350,7 +353,7 @@ class EiaApiService {
     }
 
     if (!isLeafNode(rawNode)) {
-      throw invalidParams(`Route "${route}" is a category, not a leaf.`, {
+      throw validationError(`Route "${route}" is a category, not a leaf.`, {
         reason: 'route_not_queryable',
         recovery: {
           hint: 'Use eia_browse_routes to drill into sub-routes, or eia_search_routes to find leaf routes.',
@@ -431,7 +434,7 @@ class EiaApiService {
     ctx: Context,
   ): Promise<DataResponse> {
     if ((opts.length ?? 100) > 5000) {
-      throw invalidParams('length exceeds EIA maximum of 5000 rows per request.', {
+      throw validationError('length exceeds EIA maximum of 5000 rows per request.', {
         reason: 'length_exceeded',
         maxLength: 5000,
         recovery: {
@@ -442,11 +445,11 @@ class EiaApiService {
 
     const params: Record<string, string | string[]> = {};
 
-    if (opts.frequency) params['frequency'] = opts.frequency;
-    if (opts.start) params['start'] = opts.start;
-    if (opts.end) params['end'] = opts.end;
-    if (opts.offset !== undefined) params['offset'] = String(opts.offset);
-    if (opts.length !== undefined) params['length'] = String(opts.length);
+    if (opts.frequency) params.frequency = opts.frequency;
+    if (opts.start) params.start = opts.start;
+    if (opts.end) params.end = opts.end;
+    if (opts.offset !== undefined) params.offset = String(opts.offset);
+    if (opts.length !== undefined) params.length = String(opts.length);
 
     if (opts.columns?.length) {
       params['data[]'] = opts.columns;
