@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.4](changelog/0.1.x/0.1.4.md) — 2026-05-23
+
+Field-test bug fixes: route tree misclassification, ZodError on value-array columns, 4xx error codes, auto-populate data[] columns, STEO filter_hint, description normalization.
+
 ## [0.1.3](changelog/0.1.x/0.1.3.md) — 2026-05-23
 
 mcp-ts-core ^0.9.5 → ^0.9.6, LICENSE file, lint-packaging updates.

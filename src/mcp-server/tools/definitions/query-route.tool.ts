@@ -29,7 +29,7 @@ export const queryRouteTool = tool('eia_query_route', {
       .record(z.string(), z.union([z.string(), z.array(z.string())]))
       .optional()
       .describe(
-        'Facet filters keyed by facet ID (e.g. { "stateid": "TX", "sectorid": ["RES", "COM"] }). Facet IDs and valid values discoverable via eia_describe_route.',
+        'Facet filters keyed by facet ID (e.g. { "stateid": "TX", "sectorid": ["RES", "COM"] }). Use the facets[].id values returned by eia_describe_route as keys here.',
       ),
     columns: z
       .array(z.string())

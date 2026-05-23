@@ -19,6 +19,7 @@ import {
   initRouteCache,
   isLeafNode,
   isRouteCacheReady,
+  normalizeDescription,
   searchRoutes,
 } from './route-cache.js';
 import type {
@@ -84,9 +85,33 @@ class EiaApiService {
               reason: 'rate_limited',
             });
           }
-          throw serviceUnavailable(`EIA API returned HTTP ${response.status}.`, {
-            status: response.status,
-          });
+
+          // Parse EIA's error body — it often includes an actionable message.
+          // Shape: { error: string, code: number } or plain text.
+          let upstreamMessage: string | undefined;
+          try {
+            const errBody = JSON.parse(text) as Record<string, unknown>;
+            if (typeof errBody.error === 'string') upstreamMessage = errBody.error;
+          } catch {
+            // non-JSON body — ignore
+          }
+
+          const detail = upstreamMessage
+            ? `EIA API error: ${upstreamMessage}`
+            : `EIA API returned HTTP ${response.status}.`;
+
+          if (response.status === 404) {
+            // 404s are definitive — NotFound code is not transient, withRetry won't retry
+            throw notFound(detail, { status: response.status });
+          }
+
+          if (response.status === 400) {
+            // 400s are definitive — ValidationError code is not transient, withRetry won't retry
+            throw validationError(detail, { status: response.status });
+          }
+
+          // 5xx and other status codes — transient, eligible for retry
+          throw serviceUnavailable(detail, { status: response.status });
         }
 
         let parsed: unknown;
@@ -179,30 +204,39 @@ class EiaApiService {
     nodes: RawRouteNode[],
     ctx: Context,
     depth = 0,
+    parentPath = '',
   ): Promise<RawRouteNode[]> {
     // Limit recursion depth to avoid excessive API calls
     if (depth > 5) return nodes;
 
     const enriched = await Promise.all(
       nodes.map(async (node): Promise<RawRouteNode> => {
+        const nodePath = parentPath ? `${parentPath}/${node.id}` : node.id;
+
         // If the node already has sub-routes or leaf indicators, use as-is
         if (node.routes?.length || node.frequency || node.facets || node.data) {
           if (node.routes?.length) {
-            const children = await this.buildRouteTree(node.routes, ctx, depth + 1);
+            const children = await this.buildRouteTree(node.routes, ctx, depth + 1, nodePath);
             return { ...node, routes: children };
           }
           return node;
         }
 
-        // Otherwise fetch the node's metadata to find out
+        // Otherwise fetch the node's metadata using its full path.
+        // Preserve node.id — EIA leaf responses return the domain category in
+        // their top-level `id` field (e.g. "petroleum"), not the route segment
+        // (e.g. "gnd"). Without this guard the merge would overwrite the
+        // segment ID and corrupt the path when buildNodeMap runs later.
         try {
-          const resp = await this.fetchJson<{ response: RawRouteNode }>(node.id, {}, ctx);
+          const resp = await this.fetchJson<{ response: RawRouteNode }>(nodePath, {}, ctx);
           const fetched = resp?.response;
           if (!fetched) return node;
 
-          const merged = { ...node, ...fetched };
+          // Preserve id and name from the stub — EIA leaf responses use the
+          // domain category as `id` (not the route segment) and often omit `name`.
+          const merged = { ...fetched, id: node.id, name: node.name ?? fetched.id };
           if (merged.routes?.length) {
-            const children = await this.buildRouteTree(merged.routes, ctx, depth + 1);
+            const children = await this.buildRouteTree(merged.routes, ctx, depth + 1, nodePath);
             return { ...merged, routes: children };
           }
           return merged;
@@ -232,6 +266,7 @@ class EiaApiService {
       description: `STEO series: ${f.name} (${f.id})${f.alias ? ` — ${f.alias}` : ''}`,
       isLeaf: true,
       category: 'steo',
+      filter_hint: { seriesId: f.id },
     }));
 
     addSteoSeriesToIndex(entries);
@@ -388,19 +423,30 @@ class EiaApiService {
       }),
     );
 
-    // Normalize data columns
+    // Normalize data columns. EIA uses two data field shapes:
+    //   Standard: { colId: { alias: string, units: string }, ... }
+    //   Value-array: { value: [] } — time-series routes where the single data
+    //     column is always named "value". Synthesize a minimal DataColumn entry
+    //     so query() can auto-populate data[]=value and return actual measurements.
     const dataObj = rawNode.data ?? {};
-    const dataColumns = Object.entries(dataObj).map(([id, meta]) => ({
-      id,
-      alias: meta.alias,
-      units: meta.units,
-    }));
+    const dataColumns = Object.entries(dataObj)
+      .filter(([, meta]) => meta !== null && typeof meta === 'object' && !Array.isArray(meta))
+      .map(([id, meta]) => ({
+        id,
+        alias: (meta as { alias: string; units: string }).alias,
+        units: (meta as { alias: string; units: string }).units,
+      }));
+
+    // Handle the value-array variant: { value: [] }
+    if (dataColumns.length === 0 && 'value' in dataObj && Array.isArray(dataObj.value)) {
+      dataColumns.push({ id: 'value', alias: 'Value', units: '' });
+    }
 
     const frequencies: RawFrequency[] = rawNode.frequency ?? [];
 
     const meta: RouteMetadata = {
       route,
-      description: rawNode.description ?? '',
+      description: normalizeDescription(rawNode.description),
       facets: facetResults,
       dataColumns,
       frequencies,
@@ -451,8 +497,18 @@ class EiaApiService {
     if (opts.offset !== undefined) params.offset = String(opts.offset);
     if (opts.length !== undefined) params.length = String(opts.length);
 
-    if (opts.columns?.length) {
-      params['data[]'] = opts.columns;
+    // EIA only returns value fields when data[] params are explicitly set.
+    // When the caller omits columns, auto-populate from route metadata so
+    // all available data columns are included by default.
+    let columnsToRequest = opts.columns;
+    if (!columnsToRequest?.length) {
+      const cached = _routeMetaCache.get(route);
+      if (cached?.dataColumns.length) {
+        columnsToRequest = cached.dataColumns.map((c) => c.id);
+      }
+    }
+    if (columnsToRequest?.length) {
+      params['data[]'] = columnsToRequest;
     }
 
     if (opts.filters) {

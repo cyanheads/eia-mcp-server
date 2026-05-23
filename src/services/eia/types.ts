@@ -16,8 +16,12 @@ export interface RouteEntry {
 
 /** Full route tree node as returned by the EIA v2 API browse endpoint. */
 export interface RawRouteNode {
-  /** Present on leaf nodes */
-  data?: Record<string, { alias: string; units: string }>;
+  /**
+   * Present on leaf nodes. Two shapes exist in the wild:
+   *   Standard: `{ colId: { alias: string, units: string }, ... }`
+   *   Value-array: `{ value: [] }` — time-series routes with a single unnamed column
+   */
+  data?: Record<string, { alias: string; units: string } | unknown[]>;
   defaultDateFormat?: string;
   defaultFrequency?: string;
   description?: string;
@@ -100,6 +104,12 @@ export interface DataResponse {
 export interface SearchIndexEntry {
   category: string | undefined;
   description: string;
+  /**
+   * Pre-built filter hint for routes that require a specific facet value to
+   * query. Present on STEO series entries so callers can pass the seriesId
+   * directly to eia_query_route without parsing the description string.
+   */
+  filter_hint?: Record<string, string>;
   isLeaf: boolean;
   name: string;
   route: string;

@@ -23,6 +23,20 @@ interface CacheState {
 
 let _cache: CacheState | undefined;
 
+/**
+ * Normalize a description string from the EIA API. EIA descriptions often
+ * contain embedded `\r\n` + leading whitespace (source-level line wrapping).
+ * Collapse to a clean single-line string.
+ */
+export function normalizeDescription(desc: string | undefined): string {
+  if (!desc) return '';
+  return desc
+    .replace(/\r/g, '')
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 /** Walk the raw route tree and collect all nodes into a flat path→node map. */
 export function buildNodeMap(
   nodes: RawRouteNode[],
@@ -31,9 +45,14 @@ export function buildNodeMap(
 ): void {
   for (const node of nodes) {
     const path = parentPath ? `${parentPath}/${node.id}` : node.id;
-    map.set(path, node);
-    if (node.routes?.length) {
-      buildNodeMap(node.routes, path, map);
+    // Normalize description in place so all tools that read from cache get clean strings
+    const normalized: RawRouteNode =
+      node.description !== undefined
+        ? { ...node, description: normalizeDescription(node.description) }
+        : node;
+    map.set(path, normalized);
+    if (normalized.routes?.length) {
+      buildNodeMap(normalized.routes, path, map);
     }
   }
 }

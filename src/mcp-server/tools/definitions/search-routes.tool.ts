@@ -47,6 +47,12 @@ export const searchRoutesTool = tool('eia_search_routes', {
               .describe(
                 'True when the route is a queryable leaf; false when it has sub-routes to browse.',
               ),
+            filter_hint: z
+              .record(z.string(), z.string())
+              .optional()
+              .describe(
+                'Pre-built filter for eia_query_route when a specific facet value is required. Present on STEO series results — pass directly as filters (e.g. eia_query_route(route="steo", filters=filter_hint)).',
+              ),
           })
           .describe('A search result entry.'),
       )
@@ -68,6 +74,7 @@ export const searchRoutesTool = tool('eia_search_routes', {
         description: entry.description,
         score,
         isLeaf: entry.isLeaf,
+        ...(entry.filter_hint !== undefined && { filter_hint: entry.filter_hint }),
       })),
       total_indexed: totalIndexed,
     };
@@ -90,6 +97,12 @@ export const searchRoutesTool = tool('eia_search_routes', {
       lines.push(`${tag} **${r.route}** (score: ${r.score.toFixed(3)})`);
       lines.push(`  ${r.name}`);
       if (r.description) lines.push(`  ${r.description}`);
+      if (r.filter_hint) {
+        const hint = Object.entries(r.filter_hint)
+          .map(([k, v]) => `"${k}": "${v}"`)
+          .join(', ');
+        lines.push(`  Query with: \`eia_query_route(route="${r.route}", filters={${hint}})\``);
+      }
     }
 
     return [{ type: 'text', text: lines.join('\n') }];

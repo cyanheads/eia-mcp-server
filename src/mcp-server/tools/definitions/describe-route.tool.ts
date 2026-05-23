@@ -32,7 +32,11 @@ export const describeRouteTool = tool('eia_describe_route', {
       .array(
         z
           .object({
-            id: z.string().describe('Facet ID — use as filter key in eia_query_route.'),
+            id: z
+              .string()
+              .describe(
+                'Facet ID — use as key in the filters parameter of eia_query_route (e.g. filters: { "stateid": "TX" }).',
+              ),
             description: z.string().describe('Facet description.'),
             values: z
               .array(
