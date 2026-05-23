@@ -12,7 +12,7 @@ import { getEiaApiService } from '@/services/eia/eia-service.js';
 export const searchRoutesTool = tool('eia_search_routes', {
   title: 'Search EIA Routes',
   description:
-    'Fuzzy text search across route names, descriptions, and category labels. Resolves natural-language queries like "gasoline retail prices" or "solar capacity by state" to matching route paths. STEO series names are indexed so queries like "ethanol net imports" or "crude oil production forecast" also resolve. Results include isLeaf so you know whether to browse further or query directly.',
+    'Fuzzy text search across route names, descriptions, and category labels. Resolves natural-language queries like "electricity retail sales by state" or "natural gas imports" to matching route paths. STEO series names are indexed so queries like "ethanol net imports" or "crude oil production forecast" also resolve. Results include isLeaf so you know whether to browse further or query directly. Results with score > 0.5 are weak matches — try a more specific query or use eia_browse_routes to explore the taxonomy.',
   annotations: { readOnlyHint: true, openWorldHint: false },
 
   input: z.object({
@@ -94,7 +94,8 @@ export const searchRoutesTool = tool('eia_search_routes', {
     lines.push(`**${result.results.length} result(s)** (index: ${result.total_indexed} entries)\n`);
     for (const r of result.results) {
       const tag = r.isLeaf ? '[leaf]' : '[cat]';
-      lines.push(`${tag} **${r.route}** (score: ${r.score.toFixed(3)})`);
+      const weakMatch = r.score > 0.5 ? ' ⚠ weak match' : '';
+      lines.push(`${tag} **${r.route}** (score: ${r.score.toFixed(3)}${weakMatch})`);
       lines.push(`  ${r.name}`);
       if (r.description) lines.push(`  ${r.description}`);
       if (r.filter_hint) {

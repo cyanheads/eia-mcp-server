@@ -8,7 +8,12 @@
  */
 
 import type { Context } from '@cyanheads/mcp-ts-core';
-import { notFound, serviceUnavailable, validationError } from '@cyanheads/mcp-ts-core/errors';
+import {
+  McpError,
+  notFound,
+  serviceUnavailable,
+  validationError,
+} from '@cyanheads/mcp-ts-core/errors';
 import { withRetry } from '@cyanheads/mcp-ts-core/utils';
 import { getServerConfig } from '@/config/server-config.js';
 import {
@@ -378,9 +383,22 @@ class EiaApiService {
   }
 
   private async fetchAndCacheMetadata(route: string, ctx: Context): Promise<void> {
-    // Fetch route metadata
-    const metaResp = await this.fetchJson<{ response: RawRouteNode }>(`${route}`, {}, ctx);
-    const rawNode = metaResp?.response;
+    // Fetch route metadata — remap 404 to a typed route_not_found error
+    let metaRespRaw: { response: RawRouteNode } | undefined;
+    try {
+      metaRespRaw = await this.fetchJson<{ response: RawRouteNode }>(`${route}`, {}, ctx);
+    } catch (err) {
+      if (err instanceof McpError && err.code === -32001 /* NotFound */) {
+        throw notFound(`Route "${route}" not found in the EIA taxonomy.`, {
+          reason: 'route_not_found',
+          recovery: {
+            hint: 'Use eia_browse_routes or eia_search_routes to discover valid route paths.',
+          },
+        });
+      }
+      throw err;
+    }
+    const rawNode = metaRespRaw?.response;
     if (!rawNode) {
       throw notFound(`Route "${route}" returned empty metadata.`, { reason: 'route_not_found' });
     }
@@ -408,11 +426,15 @@ class EiaApiService {
           return {
             id: f.id,
             description: f.description,
-            values: values.map((v) => ({
-              id: v.id,
-              name: v.name,
-              ...(v.alias !== undefined && { alias: v.alias }),
-            })),
+            // Filter null id/name entries — EIA returns null for some facet
+            // values (e.g. international route), which carry no usable filter value.
+            values: values
+              .filter((v) => v.id != null && v.name != null)
+              .map((v) => ({
+                id: v.id,
+                name: v.name,
+                ...(v.alias !== undefined && { alias: v.alias }),
+              })),
           };
         } catch {
           // If a single facet fetch fails, return with empty values
@@ -430,8 +452,9 @@ class EiaApiService {
     const dataColumns = Object.entries(dataObj)
       .filter(([, meta]) => meta !== null && typeof meta === 'object' && !Array.isArray(meta))
       .map(([id, meta]) => {
-        const col = meta as { alias: string; units: string };
-        return { id, alias: col.alias, units: col.units };
+        const col = meta as { alias?: string; units?: string };
+        // alias and units may be undefined for some EIA routes (e.g. crude-oil-imports)
+        return { id, alias: col.alias ?? id, units: col.units ?? '' };
       });
 
     // Handle the value-array variant: { value: [] }
@@ -486,6 +509,22 @@ class EiaApiService {
       });
     }
 
+    // Pre-flight: if the route is in the cache as a category node, fail early
+    // with a typed error rather than letting the EIA API return a generic 404.
+    await this.ensureCacheWarmed(ctx);
+    const cachedNode = getNode(route);
+    if (cachedNode && !isLeafNode(cachedNode)) {
+      throw validationError(
+        `Route "${route}" is a category, not a leaf — it has no data to query.`,
+        {
+          reason: 'route_not_found',
+          recovery: {
+            hint: 'Use eia_browse_routes or eia_search_routes to find a valid leaf route path.',
+          },
+        },
+      );
+    }
+
     const params: Record<string, string | string[]> = {};
 
     if (opts.frequency) params.frequency = opts.frequency;
@@ -520,7 +559,7 @@ class EiaApiService {
       params[`sort[${i}][direction]`] = s.direction;
     }
 
-    const resp = await this.fetchJson<{
+    let resp: {
       response: {
         total: string;
         dateFormat?: string;
@@ -528,7 +567,33 @@ class EiaApiService {
         data: DataRow[];
         warnings?: string[];
       };
-    }>(`${route}/data/`, params, ctx);
+    };
+    try {
+      resp = await this.fetchJson<typeof resp>(`${route}/data/`, params, ctx);
+    } catch (err) {
+      if (err instanceof McpError) {
+        if (err.code === -32001 /* NotFound */) {
+          throw notFound(`Route "${route}" not found in the EIA taxonomy.`, {
+            reason: 'route_not_found',
+            recovery: {
+              hint: 'Use eia_browse_routes or eia_search_routes to find a valid leaf route path.',
+            },
+          });
+        }
+        if (err.code === -32007 /* ValidationError */) {
+          // 400 from EIA — likely an invalid facet key. Surface the EIA message
+          // plus the contract recovery hint.
+          const eiaMsg = err.message;
+          throw validationError(eiaMsg, {
+            reason: 'invalid_facet',
+            recovery: {
+              hint: 'Call eia_describe_route to see valid facet IDs for this route.',
+            },
+          });
+        }
+      }
+      throw err;
+    }
 
     const response = resp?.response;
     if (!response) {

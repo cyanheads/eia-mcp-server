@@ -132,17 +132,11 @@ export const queryRouteTool = tool('eia_query_route', {
       recovery: 'Call eia_describe_route to see valid facet IDs for this route.',
     },
     {
-      reason: 'invalid_facet_value',
-      code: JsonRpcErrorCode.ValidationError,
-      when: 'A facet value is not in the valid set for the facet.',
-      recovery: 'Call eia_describe_route to list valid values for each facet dimension.',
-    },
-    {
       reason: 'no_data',
       code: JsonRpcErrorCode.NotFound,
       when: 'Route exists but filters yield zero rows.',
       recovery:
-        'Broaden filters, remove date constraints, or check facet values via eia_describe_route.',
+        'Broaden filters, remove date constraints, or call eia_describe_route to verify facet values — an invalid facet value silently returns zero rows.',
     },
     {
       reason: 'length_exceeded',
@@ -165,6 +159,22 @@ export const queryRouteTool = tool('eia_query_route', {
       offset: input.offset,
       length: input.length,
     });
+
+    // Pre-flight: detect inverted date range before hitting the EIA API.
+    // ISO date strings (YYYY-MM, YYYY-MM-DD, YYYY) sort lexicographically, so
+    // string comparison is sufficient for this check.
+    if (input.start !== undefined && input.end !== undefined && input.start > input.end) {
+      throw ctx.fail(
+        'no_data',
+        `Date range is inverted: start "${input.start}" is after end "${input.end}". Swap start and end to retrieve data.`,
+        {
+          route: input.route,
+          start: input.start,
+          end: input.end,
+          ...ctx.recoveryFor('no_data'),
+        },
+      );
+    }
 
     const service = getEiaApiService();
     const dataResp = await service.query(
@@ -285,16 +295,34 @@ export const queryRouteTool = tool('eia_query_route', {
       return [{ type: 'text', text: lines.join('\n') }];
     }
 
-    // Render table header from first row keys
+    // Render table — separate data columns from {col}-units columns.
+    // Units are identical on every row, so annotate the header instead of
+    // repeating them in the body.
     const firstRow = result.data[0];
     if (!firstRow) return [{ type: 'text', text: lines.join('\n') }];
-    const cols = Object.keys(firstRow);
-    const header = `| ${cols.join(' | ')} |`;
-    const sep = `| ${cols.map(() => '---').join(' | ')} |`;
+    const allKeys = Object.keys(firstRow);
+
+    // Build a units map from the first row: { colName: "unit string" }
+    const unitsMap: Record<string, string> = {};
+    for (const key of allKeys) {
+      if (key.endsWith('-units')) {
+        const col = key.slice(0, -6); // strip trailing '-units'
+        const unit = firstRow[key];
+        if (unit !== null && unit !== undefined) unitsMap[col] = String(unit);
+      }
+    }
+
+    // Data columns are all keys that are not {col}-units entries
+    const dataCols = allKeys.filter((k) => !k.endsWith('-units'));
+
+    // Header: "col (unit)" when a unit is known, else just "col"
+    const headerCells = dataCols.map((c) => (unitsMap[c] ? `${c} (${unitsMap[c]})` : c));
+    const header = `| ${headerCells.join(' | ')} |`;
+    const sep = `| ${dataCols.map(() => '---').join(' | ')} |`;
     lines.push(header, sep);
 
     for (const row of result.data) {
-      const cells = cols.map((c) => {
+      const cells = dataCols.map((c) => {
         const v = row[c];
         if (v === null || v === undefined) return '';
         return String(v).replace(/\|/g, '\\|');
