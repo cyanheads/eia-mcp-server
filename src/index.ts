@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @fileoverview eia-mcp-server MCP server entry point.
+ * @fileoverview eia-energy-mcp-server MCP server entry point.
  * @module index
  */
 

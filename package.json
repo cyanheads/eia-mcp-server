@@ -1,13 +1,13 @@
 {
-  "name": "@cyanheads/eia-mcp-server",
-  "version": "0.1.7",
-  "mcpName": "io.github.cyanheads/eia-mcp-server",
-  "description": "Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.",
+  "name": "@cyanheads/eia-energy-mcp-server",
+  "version": "0.2.0",
+  "mcpName": "io.github.cyanheads/eia-energy-mcp-server",
+  "description": "Browse and query the U.S. Energy Information Administration API v2 \u2014 electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "eia-mcp-server": "dist/index.js"
+    "eia-energy-mcp-server": "dist/index.js"
   },
   "files": [
     "changelog/",
@@ -28,7 +28,7 @@
     "format": "biome check --write --unsafe .",
     "lint:mcp": "bun run scripts/lint-mcp.ts",
     "lint:packaging": "bun run scripts/lint-packaging.ts",
-    "bundle": "bun run build && npx -y @anthropic-ai/mcpb pack . dist/eia-mcp-server.mcpb",
+    "bundle": "bun run build && npx -y @anthropic-ai/mcpb pack . dist/eia-energy-mcp-server.mcpb",
     "changelog:build": "bun run scripts/build-changelog.ts",
     "changelog:check": "bun run scripts/build-changelog.ts --check",
     "list-skills": "bun run scripts/list-skills.ts",
@@ -41,6 +41,7 @@
   "keywords": [
     "eia",
     "energy",
+    "energy-information-administration",
     "electricity",
     "petroleum",
     "natural-gas",
@@ -49,25 +50,22 @@
     "energy-api",
     "steo",
     "us-energy",
-    "llm",
     "mcp",
     "mcp-server",
     "model-context-protocol",
     "typescript",
     "bun",
-    "stdio",
-    "streamable-http",
     "ai-agent"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cyanheads/eia-mcp-server.git"
+    "url": "git+https://github.com/cyanheads/eia-energy-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/cyanheads/eia-mcp-server/issues"
+    "url": "https://github.com/cyanheads/eia-energy-mcp-server/issues"
   },
-  "homepage": "https://github.com/cyanheads/eia-mcp-server#readme",
-  "author": "cyanheads <casey@caseyjhand.com> (https://github.com/cyanheads/eia-mcp-server#readme)",
+  "homepage": "https://github.com/cyanheads/eia-energy-mcp-server#readme",
+  "author": "cyanheads <casey@caseyjhand.com> (https://github.com/cyanheads/eia-energy-mcp-server#readme)",
   "funding": [
     {
       "type": "github",

@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in eia-mcp-server
+description: Report a bug in eia-energy-mcp-server
 labels: ["bug"]
 # assignees: ["your-github-username"]  # uncomment to auto-assign new issues
 body:

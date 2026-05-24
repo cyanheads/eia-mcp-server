@@ -1,9 +1,9 @@
-# eia-mcp-server - Directory Structure
+# eia-energy-mcp-server - Directory Structure
 
-Generated on: 2026-05-23 14:18:22
+Generated on: 2026-05-24 22:55:43
 
 ```text
-eia-mcp-server/
+eia-energy-mcp-server/
 ├── .claude/
 ├── .github/
 │   └── ISSUE_TEMPLATE/

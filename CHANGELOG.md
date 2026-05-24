@@ -2,9 +2,13 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.0](changelog/0.2.x/0.2.0.md) — 2026-05-24 · ⚠️ Breaking
+
+Repo and package renamed from eia-mcp-server to eia-energy-mcp-server; tool names (eia_*) unchanged.
+
 ## [0.1.7](changelog/0.1.x/0.1.7.md) — 2026-05-23
 
-Add `@duckdb/node-api ^1.5.3-r.1` — enables DuckDB canvas provider for dataframe tools.
+Add @duckdb/node-api ^1.5.3-r.1 — enables DuckDB canvas provider for dataframe tools.
 
 ## [0.1.6](changelog/0.1.x/0.1.6.md) — 2026-05-23
 

@@ -37,9 +37,9 @@ WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
 # OCI image metadata (https://github.com/opencontainers/image-spec/blob/main/annotations.md)
-LABEL org.opencontainers.image.title="eia-mcp-server"
+LABEL org.opencontainers.image.title="eia-energy-mcp-server"
 LABEL org.opencontainers.image.description="Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP."
-LABEL org.opencontainers.image.source="https://github.com/cyanheads/eia-mcp-server"
+LABEL org.opencontainers.image.source="https://github.com/cyanheads/eia-energy-mcp-server"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 # Copy dependency manifests
@@ -73,7 +73,7 @@ COPY --from=build /usr/src/app/dist ./dist
 # We will use this existing user for enhanced security.
 
 # Create and set permissions for the log directory, assigning ownership to the 'bun' user.
-RUN mkdir -p /var/log/eia-mcp-server && chown -R bun:bun /var/log/eia-mcp-server
+RUN mkdir -p /var/log/eia-energy-mcp-server && chown -R bun:bun /var/log/eia-energy-mcp-server
 
 # Switch to the non-root user
 USER bun
@@ -89,7 +89,7 @@ ENV MCP_HTTP_HOST="0.0.0.0"
 ENV MCP_TRANSPORT_TYPE="http"
 ENV MCP_SESSION_MODE="stateless"
 ENV MCP_LOG_LEVEL="info"
-ENV LOGS_DIR="/var/log/eia-mcp-server"
+ENV LOGS_DIR="/var/log/eia-energy-mcp-server"
 ENV MCP_FORCE_CONSOLE_LOGGING="true"
 
 # Expose the port the server listens on

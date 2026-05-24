@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest a new feature or improvement for eia-mcp-server
+description: Suggest a new feature or improvement for eia-energy-mcp-server
 labels: ["enhancement"]
 # assignees: ["your-github-username"]  # uncomment to auto-assign new issues
 body:
