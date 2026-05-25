@@ -535,10 +535,15 @@ class EiaApiService {
 
     // EIA only returns value fields when data[] params are explicitly set.
     // When the caller omits columns, auto-populate from route metadata so
-    // all available data columns are included by default.
+    // all available data columns are included by default. Fetch metadata
+    // on-demand when the cache is cold (no prior eia_describe_route call).
     let columnsToRequest = opts.columns;
     if (!columnsToRequest?.length) {
-      const cached = _routeMetaCache.get(route);
+      let cached = _routeMetaCache.get(route);
+      if (!cached) {
+        await this.fetchAndCacheMetadata(route, ctx);
+        cached = _routeMetaCache.get(route);
+      }
       if (cached?.dataColumns.length) {
         columnsToRequest = cached.dataColumns.map((c) => c.id);
       }
