@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.1](changelog/0.2.x/0.2.1.md) — 2026-05-25
+
+fix: auto-fetch route metadata on cold cache in eia_query_route
+
 ## [0.2.0](changelog/0.2.x/0.2.0.md) — 2026-05-24 · ⚠️ Breaking
 
 Repo and package renamed from eia-mcp-server to eia-energy-mcp-server; tool names (eia_*) unchanged.
