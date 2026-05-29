@@ -35,6 +35,7 @@ await createApp({
     dataframeQueryTool,
     dropTool,
   ],
+  landing: { requireAuth: false },
   setup(core) {
     initEiaApiService();
     initCanvasBridge(core.canvas);

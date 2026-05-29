@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.2](changelog/0.2.x/0.2.2.md) — 2026-05-28 · 🛡️ Security
+
+@cyanheads/mcp-ts-core ^0.9.6 → ^0.9.13: HTTP transport hardening, session-init gate, quieter error logs, GET /mcp keywords; dep refresh
+
 ## [0.2.1](changelog/0.2.x/0.2.1.md) — 2026-05-25
 
 fix: auto-fetch route metadata on cold cache in eia_query_route
