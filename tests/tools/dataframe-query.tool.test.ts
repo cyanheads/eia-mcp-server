@@ -4,7 +4,7 @@
  */
 
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dataframeQueryTool } from '@/mcp-server/tools/definitions/dataframe-query.tool.js';
 import * as canvasBridge from '@/services/canvas-bridge/canvas-bridge.js';
@@ -53,8 +53,30 @@ describe('dataframeQueryTool', () => {
 
     expect(result.columns).toEqual(['period', 'value']);
     expect(result.rows).toHaveLength(1);
-    expect(result.row_count).toBe(1);
     expect(result.registered_as).toBeUndefined();
+
+    // row_count moved to enrichment
+    const enrichment = getEnrichment(ctx);
+    expect(enrichment.totalRows).toBe(1);
+    expect(enrichment.returnedRows).toBe(1);
+  });
+
+  it('populates capped notice when rowCount > rows.length', async () => {
+    mockQuery.mockResolvedValue({
+      result: {
+        columns: ['period', 'value'],
+        rows: [{ period: '2024-01', value: '9.13' }],
+        rowCount: 5000,
+      },
+    });
+
+    const ctx = createMockContext({ errors: dataframeQueryTool.errors, tenantId: 'test' });
+    const input = dataframeQueryTool.input.parse({ sql: 'SELECT * FROM df_TEST' });
+    await dataframeQueryTool.handler(input, ctx);
+
+    const enrichment = getEnrichment(ctx);
+    expect(enrichment.totalRows).toBe(5000);
+    expect(enrichment.notice).toMatch(/5,000/);
   });
 
   it('returns registered_as when register_as is supplied', async () => {
@@ -94,7 +116,6 @@ describe('dataframeQueryTool', () => {
     it('renders table markdown', () => {
       const result = {
         columns: ['period', 'value'],
-        row_count: 2,
         rows: [
           { period: '2024-01', value: '9.13' },
           { period: '2024-02', value: '8.45' },
@@ -108,16 +129,15 @@ describe('dataframeQueryTool', () => {
     });
 
     it('renders no-rows state', () => {
-      const result = { columns: ['period'], row_count: 0, rows: [] };
+      const result = { columns: ['period'], rows: [] };
       const blocks = dataframeQueryTool.format!(result);
       const text = (blocks[0] as { text: string }).text;
-      expect(text).toContain('0 rows');
+      expect(text).toContain('_No rows._');
     });
 
     it('shows register info when registered_as present', () => {
       const result = {
         columns: ['val'],
-        row_count: 5,
         rows: [{ val: '1' }],
         registered_as: 'df_OUT',
         expires_at: '2026-01-01T00:00:00Z',

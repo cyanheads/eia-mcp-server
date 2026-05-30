@@ -3,7 +3,7 @@
  * @module tests/tools/search-routes.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { searchRoutesTool } from '@/mcp-server/tools/definitions/search-routes.tool.js';
 import * as eiaService from '@/services/eia/eia-service.js';
@@ -59,7 +59,11 @@ describe('searchRoutesTool', () => {
     expect(result.results[0]?.route).toBe('electricity/retail-sales');
     expect(result.results[0]?.score).toBe(0.05);
     expect(result.results[0]?.isLeaf).toBe(true);
-    expect(result.total_indexed).toBe(150);
+
+    // totalIndexed moved to enrichment
+    const enrichment = getEnrichment(ctx);
+    expect(enrichment.totalIndexed).toBe(150);
+    expect(enrichment.effectiveQuery).toBe('retail electricity');
   });
 
   it('returns empty results on no match', async () => {
@@ -70,7 +74,11 @@ describe('searchRoutesTool', () => {
     const result = await searchRoutesTool.handler(input, ctx);
 
     expect(result.results).toHaveLength(0);
-    expect(result.total_indexed).toBe(150);
+
+    // totalIndexed and notice in enrichment
+    const enrichment = getEnrichment(ctx);
+    expect(enrichment.totalIndexed).toBe(150);
+    expect(enrichment.notice).toMatch(/No routes matched/);
   });
 
   it('respects limit parameter', async () => {
@@ -105,22 +113,19 @@ describe('searchRoutesTool', () => {
             isLeaf: true,
           },
         ],
-        total_indexed: 200,
       };
       const blocks = searchRoutesTool.format!(result);
       const text = (blocks[0] as { text: string }).text;
       expect(text).toContain('[leaf]');
       expect(text).toContain('petroleum/pri/gnd');
       expect(text).toContain('0.120');
-      expect(text).toContain('200');
     });
 
     it('renders no-results message', () => {
-      const result = { results: [], total_indexed: 100 };
+      const result = { results: [] };
       const blocks = searchRoutesTool.format!(result);
       const text = (blocks[0] as { text: string }).text;
       expect(text).toContain('No matching routes');
-      expect(text).toContain('100');
     });
   });
 });

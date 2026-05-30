@@ -84,12 +84,6 @@ export const queryRouteTool = tool('eia_query_route', {
       .describe(
         'Preview rows. All numeric values are strings per the EIA API (e.g. "9.13"). Cast to DOUBLE in SQL for arithmetic: CAST(value AS DOUBLE). Per-column units appear as {col}-units fields inline in each row. Keys are dynamic column IDs from the EIA route.',
       ),
-    total: z.number().describe('Total matching rows in the EIA dataset.'),
-    returned_count: z
-      .number()
-      .describe(
-        'Rows in this response. When returned_count < total, use offset or canvas for the rest.',
-      ),
     frequency: z.string().describe('Frequency of the returned data.'),
     date_format: z.string().describe('Period format for the returned data (e.g. "YYYY-MM").'),
     canvas_id: z
@@ -117,6 +111,31 @@ export const queryRouteTool = tool('eia_query_route', {
         "Forwarded from EIA's warnings[] when the API warns of truncated results near the 5,000 per-page limit.",
       ),
   }),
+
+  enrichment: {
+    effectiveRoute: z.string().describe('The route path that was queried.'),
+    totalCount: z.number().describe('Total matching rows in the EIA dataset.'),
+    returnedCount: z
+      .number()
+      .describe(
+        'Rows in this response. When returnedCount < totalCount, use offset or canvas for the rest.',
+      ),
+    appliedFilters: z
+      .record(z.string(), z.union([z.string(), z.array(z.string())]))
+      .optional()
+      .describe('Facet filters applied to the query, when provided.'),
+  },
+  enrichmentTrailer: {
+    appliedFilters: {
+      render: (filters) => {
+        if (!filters || Object.keys(filters).length === 0) return null as unknown as string;
+        const entries = Object.entries(filters)
+          .map(([k, v]) => `- **${k}:** ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('\n');
+        return `**Applied Filters:**\n${entries}`;
+      },
+    },
+  },
 
   errors: [
     {
@@ -203,11 +222,20 @@ export const queryRouteTool = tool('eia_query_route', {
       );
     }
 
+    // Populate enrichment — reaches both structuredContent and content[] trailer.
+    ctx.enrich({
+      effectiveRoute: input.route,
+      totalCount: dataResp.total,
+      returnedCount: dataResp.data.length,
+      ...(input.filters &&
+        Object.keys(input.filters).length > 0 && {
+          appliedFilters: input.filters,
+        }),
+    });
+
     const result: {
       route: string;
       data: Array<Record<string, unknown>>;
-      total: number;
-      returned_count: number;
       frequency: string;
       date_format: string;
       canvas_id?: string;
@@ -217,8 +245,6 @@ export const queryRouteTool = tool('eia_query_route', {
     } = {
       route: input.route,
       data: dataResp.data,
-      total: dataResp.total,
-      returned_count: dataResp.data.length,
       frequency: dataResp.frequency,
       date_format: dataResp.dateFormat,
     };
@@ -276,8 +302,7 @@ export const queryRouteTool = tool('eia_query_route', {
     const lines: string[] = [];
 
     lines.push(`## Query: ${result.route}`);
-    lines.push(`**Frequency:** ${result.frequency} | **Date format:** ${result.date_format}`);
-    lines.push(`**Rows:** ${result.returned_count} of ${result.total} total\n`);
+    lines.push(`**Frequency:** ${result.frequency} | **Date format:** ${result.date_format}\n`);
 
     if (result.canvas_preview_note) {
       lines.push(`> ${result.canvas_preview_note}\n`);

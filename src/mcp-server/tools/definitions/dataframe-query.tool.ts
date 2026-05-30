@@ -59,11 +59,13 @@ export const dataframeQueryTool = tool('eia_dataframe_query', {
 
   output: z.object({
     columns: z.array(z.string()).describe('Column names in projection order.'),
-    row_count: z
-      .number()
-      .describe('Total rows the query produced (may exceed rows.length when capped).'),
     rows: z
-      .array(z.record(z.string(), z.unknown()))
+      .array(
+        z
+          .object({})
+          .passthrough()
+          .describe('A result row with dynamic keys matching the SQL projection columns.'),
+      )
       .describe('Materialized rows, bounded by preview / row_limit.'),
     registered_as: z
       .string()
@@ -74,6 +76,17 @@ export const dataframeQueryTool = tool('eia_dataframe_query', {
       .optional()
       .describe('ISO 8601 expiry for the newly registered dataframe, when applicable.'),
   }),
+
+  enrichment: {
+    totalRows: z
+      .number()
+      .describe('Total rows the query produced (may exceed rows.length when capped by row_limit).'),
+    returnedRows: z.number().describe('Rows included in this response.'),
+    notice: z
+      .string()
+      .optional()
+      .describe('Guidance when results are capped — shows how many rows were omitted.'),
+  },
 
   async handler(input, ctx) {
     const bridge = getCanvasBridge();
@@ -97,9 +110,15 @@ export const dataframeQueryTool = tool('eia_dataframe_query', {
       registeredAs: meta?.tableName,
     });
 
+    ctx.enrich({ totalRows: result.rowCount, returnedRows: result.rows.length });
+    if (result.rowCount > result.rows.length) {
+      ctx.enrich.notice(
+        `Showing ${result.rows.length.toLocaleString()} of ${result.rowCount.toLocaleString()} rows — increase row_limit or use register_as to chain into a new dataframe.`,
+      );
+    }
+
     return {
       columns: result.columns,
-      row_count: result.rowCount,
       rows: result.rows,
       registered_as: meta?.tableName,
       expires_at: meta?.expiresAt,
@@ -114,12 +133,6 @@ export const dataframeQueryTool = tool('eia_dataframe_query', {
         `Registered as ${result.registered_as} (expires ${result.expires_at ?? 'unknown'}).`,
       );
     }
-
-    const cappedNote =
-      result.row_count > result.rows.length
-        ? ` (showing ${result.rows.length} of ${result.row_count})`
-        : '';
-    lines.push(`**${result.row_count} rows**${cappedNote}\n`);
 
     if (result.rows.length === 0) {
       lines.push('_No rows._');

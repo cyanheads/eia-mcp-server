@@ -57,15 +57,33 @@ export const searchRoutesTool = tool('eia_search_routes', {
           .describe('A search result entry.'),
       )
       .describe('Ranked matches, best first.'),
-    total_indexed: z
+  }),
+
+  enrichment: {
+    effectiveQuery: z.string().describe('Query as submitted to the Fuse.js index.'),
+    totalIndexed: z
       .number()
       .describe('Total entries in the search index (routes + STEO series names).'),
-  }),
+    notice: z
+      .string()
+      .optional()
+      .describe(
+        'Recovery hint when no routes matched — suggests alternative queries or using eia_browse_routes.',
+      ),
+  },
 
   async handler(input, ctx) {
     ctx.log.info('Executing eia_search_routes', { query: input.query, limit: input.limit });
     const service = getEiaApiService();
     const { results, totalIndexed } = await service.search(input.query, input.limit, ctx);
+
+    ctx.enrich.echo(input.query);
+    ctx.enrich({ totalIndexed });
+    if (results.length === 0) {
+      ctx.enrich.notice(
+        `No routes matched "${input.query}". Try different search terms or use eia_browse_routes to explore the taxonomy.`,
+      );
+    }
 
     return {
       results: results.map(({ entry, score }) => ({
@@ -76,7 +94,6 @@ export const searchRoutesTool = tool('eia_search_routes', {
         isLeaf: entry.isLeaf,
         ...(entry.filter_hint !== undefined && { filter_hint: entry.filter_hint }),
       })),
-      total_indexed: totalIndexed,
     };
   },
 
@@ -87,11 +104,10 @@ export const searchRoutesTool = tool('eia_search_routes', {
       lines.push(
         'No matching routes found. Try different search terms or browse with eia_browse_routes.',
       );
-      lines.push(`\nIndex size: ${result.total_indexed} entries`);
       return [{ type: 'text', text: lines.join('\n') }];
     }
 
-    lines.push(`**${result.results.length} result(s)** (index: ${result.total_indexed} entries)\n`);
+    lines.push(`**${result.results.length} result(s)**\n`);
     for (const r of result.results) {
       const tag = r.isLeaf ? '[leaf]' : '[cat]';
       const weakMatch = r.score > 0.5 ? ' ⚠ weak match' : '';
