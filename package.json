@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/eia-energy-mcp-server",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "mcpName": "io.github.cyanheads/eia-energy-mcp-server",
   "description": "Browse and query the U.S. Energy Information Administration API v2 — electricity, petroleum, natural gas, coal, forecasts, and more via MCP. STDIO or Streamable HTTP.",
   "type": "module",
@@ -25,7 +25,8 @@
     "devcheck": "bun run scripts/devcheck.ts",
     "audit:refresh": "rm -f bun.lock && bun install && bun audit",
     "tree": "bun run scripts/tree.ts",
-    "format": "biome check --write --unsafe .",
+    "format": "biome check --write .",
+    "format:unsafe": "biome check --write --unsafe .",
     "lint:mcp": "bun run scripts/lint-mcp.ts",
     "lint:packaging": "bun run scripts/lint-packaging.ts",
     "bundle": "bun run build && npx -y @anthropic-ai/mcpb pack . dist/eia-energy-mcp-server.mcpb",
@@ -88,7 +89,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@cyanheads/mcp-ts-core": "^0.9.13",
+    "@cyanheads/mcp-ts-core": "^0.9.16",
     "@duckdb/node-api": "^1.5.3-r.2",
     "fuse.js": "^7.3.0",
     "pino-pretty": "^13.1.3",

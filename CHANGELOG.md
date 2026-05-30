@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.3](changelog/0.2.x/0.2.3.md) — 2026-05-30
+
+Enrichment adoption — search/query/dataframe tools surface query echoes, result totals, and empty-result guidance in a typed enrichment block reaching both structuredContent and content[]
+
 ## [0.2.2](changelog/0.2.x/0.2.2.md) — 2026-05-28 · 🛡️ Security
 
 @cyanheads/mcp-ts-core ^0.9.6 → ^0.9.13: HTTP transport hardening, session-init gate, quieter error logs, GET /mcp keywords; dep refresh
